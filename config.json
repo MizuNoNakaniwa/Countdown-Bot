@@ -2,7 +2,5 @@
   "title": "目标倒计时",
   "target_datetime": "2027-01-01T00:00:00",
   "timezone": "America/Los_Angeles",
-  "daily_push_hour": 9,
-  "critical_day_milestones": [365, 180, 100, 30, 7, 3, 1, 0],
-  "final_day_hourly": true
+  "daily_push_hour": 9
 }
