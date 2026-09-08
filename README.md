@@ -1,8 +1,8 @@
 # Countdown Bot / 倒计时提醒 Bot
 
-A GitHub Actions-based countdown reminder bot with email and other notification methods, manual timezone switching, and customizable milestone reminders.
+A GitHub Actions-based countdown reminder bot that sends email notifications, supports manual timezone switching, and customizable milestone reminders.
 
-一个基于 GitHub Actions 的倒计时提醒 Bot，支持通过 Email 或其他方式发送提醒、手动切换时区，以及自定义关键节点提醒。
+一个基于 GitHub Actions 的倒计时提醒 Bot，支持通过 Email 发送提醒、手动切换时区，以及自定义关键节点提醒。
 
 ---
 
@@ -12,7 +12,7 @@ A GitHub Actions-based countdown reminder bot with email and other notification 
 
 Countdown Bot 是一个不需要自己维护服务器的倒计时提醒工具。
 
-GitHub Actions 会定时运行脚本，计算距离目标时间还剩多久，并在满足提醒条件时通过 Telegram 推送消息；Email 可以作为备用通知通道。
+GitHub Actions 会定时运行脚本，计算距离目标时间还剩多久，并在满足提醒条件时通过 Gmail / Email 向你发送通知。
 
 ```text
 GitHub Actions
@@ -25,7 +25,7 @@ GitHub Actions
       ↓
 判断是否达到提醒条件
       ↓
-Telegram / Email
+Gmail / Email
       ↓
 手机 + 电脑
 ```
@@ -33,14 +33,13 @@ Telegram / Email
 ### 功能
 
 - GitHub Actions 自动运行
-- Telegram 推送
-- Email 备用提醒
-- 手机和电脑同步接收
+- Gmail / Email 通知
+- 手机和电脑都能收到邮件提醒
 - 自定义目标日期和时间
 - IANA 时区支持
 - 自动处理夏令时
 - 每天固定时间提醒
-- 自定义关键节点
+- 自定义关键节点提醒
 - 最后 24 小时可每小时提醒
 - 状态文件防止重复通知
 
@@ -55,9 +54,7 @@ Telegram / Email
   "timezone": "America/Los_Angeles",
   "daily_push_hour": 9,
   "critical_day_milestones": [365, 180, 100, 30, 7, 3, 1, 0],
-  "final_day_hourly": true,
-  "telegram_enabled": true,
-  "email_enabled": false
+  "final_day_hourly": true
 }
 ```
 
@@ -104,7 +101,7 @@ Telegram / Email
 "critical_day_milestones": [365, 180, 100, 30, 7, 3, 1, 0]
 ```
 
-可自由修改，例如：
+可以自由修改，例如：
 
 ```json
 "critical_day_milestones": [1000, 500, 365, 300, 200, 100, 50, 30, 7, 3, 1, 0]
@@ -124,37 +121,9 @@ Telegram / Email
 "final_day_hourly": false
 ```
 
-## Telegram 设置
+## Gmail / Email 设置
 
-### 1. 创建 Telegram Bot
-
-在 Telegram 搜索官方 `@BotFather`，发送：
-
-```text
-/newbot
-```
-
-按提示创建 Bot 并保存 Bot Token。然后打开新 Bot，发送：
-
-```text
-/start
-```
-
-### 2. 获取 Chat ID
-
-给 Bot 发过消息后，使用 Telegram Bot API 的 `getUpdates` 获取 Chat ID。结果中会出现类似：
-
-```json
-"chat": {
-  "id": 123456789
-}
-```
-
-这个数字就是你的 Chat ID。
-
-### 3. 添加 GitHub Secrets
-
-进入：
+进入仓库：
 
 ```text
 Settings
@@ -163,30 +132,7 @@ Settings
 → New repository secret
 ```
 
-添加：
-
-```text
-TELEGRAM_BOT_TOKEN
-TELEGRAM_CHAT_ID
-```
-
-不要把 Bot Token 或 Chat ID 直接写进公开代码。
-
-## Email 备用提醒
-
-默认关闭：
-
-```json
-"email_enabled": false
-```
-
-如果要开启：
-
-```json
-"email_enabled": true
-```
-
-然后在 GitHub Secrets 中添加：
+添加以下三个 GitHub Secrets：
 
 ```text
 SMTP_USERNAME
@@ -196,11 +142,13 @@ EMAIL_TO
 
 如果使用 Gmail：
 
-- `SMTP_USERNAME`：发件 Gmail 地址
+- `SMTP_USERNAME`：作为发件人的 Gmail 地址
 - `SMTP_PASSWORD`：Google App Password
-- `EMAIL_TO`：收件邮箱
+- `EMAIL_TO`：真正接收倒计时提醒的邮箱
 
-不要使用普通 Gmail 密码。
+`EMAIL_TO` 可以和 `SMTP_USERNAME` 是同一个邮箱，也可以是另一个邮箱。
+
+不要使用普通 Gmail 密码。建议开启 Google 两步验证，然后为这个 Bot 单独创建 App Password。
 
 ## 安全与隐私
 
@@ -210,11 +158,9 @@ EMAIL_TO
 
 ```text
 真实 Email 地址
-Telegram Bot Token
-Telegram Chat ID
-Gmail 密码
+Gmail 登录密码
 Google App Password
-其他 API Key
+其他 API Key / Token
 ```
 
 这些值都应该保存在：
@@ -223,7 +169,7 @@ Google App Password
 Settings → Secrets and variables → Actions
 ```
 
-注意：公开仓库中的 `config.json` 任何人都能看到。如果目标日期、标题或时区本身属于隐私信息，请不要直接填写真实值。
+注意：公开仓库中的 `config.json` 任何人都能看到。如果目标日期、标题或时区本身属于隐私信息，请不要直接填写真实值，或者将仓库设为 Private。
 
 ## 默认提醒规则
 
@@ -255,7 +201,9 @@ schedule:
 Actions → Countdown Bot → Run workflow
 ```
 
-如果当前没有达到任何提醒条件，Workflow 会正常结束，但不会发送消息。
+如果当前没有达到任何提醒条件，Workflow 会正常结束，但不会发送邮件。
+
+为了测试邮件是否配置成功，可以临时把 `daily_push_hour` 改成你当前所在时区的当前小时，然后手动运行 Workflow。
 
 ---
 
@@ -265,9 +213,7 @@ Actions → Countdown Bot → Run workflow
 
 Countdown Bot is a lightweight countdown reminder system powered by GitHub Actions.
 
-It does not require a dedicated server. GitHub Actions periodically runs a Python script, calculates the time remaining until a configured target, and sends a notification when a reminder condition is met.
-
-Telegram is the primary notification channel, while email can be enabled as a backup.
+It does not require a dedicated server. GitHub Actions periodically runs a Python script, calculates the remaining time until a configured target, and sends an email notification when a reminder condition is met.
 
 ```text
 GitHub Actions
@@ -280,7 +226,7 @@ Calculates remaining time
       ↓
 Checks reminder conditions
       ↓
-Telegram / Email
+Gmail / Email
       ↓
 Phone + Desktop
 ```
@@ -288,9 +234,8 @@ Phone + Desktop
 ## Features
 
 - Automated with GitHub Actions
-- Telegram notifications
-- Optional email fallback
-- Cross-device delivery
+- Gmail / Email notifications
+- Cross-device delivery through email
 - Custom target date and time
 - IANA timezone support
 - Automatic daylight-saving-time handling
@@ -310,9 +255,7 @@ The main configuration file is `config.json`:
   "timezone": "America/Los_Angeles",
   "daily_push_hour": 9,
   "critical_day_milestones": [365, 180, 100, 30, 7, 3, 1, 0],
-  "final_day_hourly": true,
-  "telegram_enabled": true,
-  "email_enabled": false
+  "final_day_hourly": true
 }
 ```
 
@@ -375,35 +318,7 @@ Disable them:
 "final_day_hourly": false
 ```
 
-## Telegram setup
-
-### 1. Create a bot
-
-Open Telegram, find the official `@BotFather`, and send:
-
-```text
-/newbot
-```
-
-Follow the instructions and save the Bot Token. Then open your new bot and send:
-
-```text
-/start
-```
-
-### 2. Find your Chat ID
-
-After messaging the bot, use Telegram Bot API `getUpdates`. Look for a result similar to:
-
-```json
-"chat": {
-  "id": 123456789
-}
-```
-
-The numeric value is your Chat ID.
-
-### 3. Add GitHub Secrets
+## Gmail / Email setup
 
 Open:
 
@@ -414,30 +329,7 @@ Settings
 → New repository secret
 ```
 
-Create:
-
-```text
-TELEGRAM_BOT_TOKEN
-TELEGRAM_CHAT_ID
-```
-
-Never hard-code these values into the public repository.
-
-## Optional email fallback
-
-Email is disabled by default:
-
-```json
-"email_enabled": false
-```
-
-Enable it with:
-
-```json
-"email_enabled": true
-```
-
-Then add these GitHub Secrets:
+Create these three GitHub Secrets:
 
 ```text
 SMTP_USERNAME
@@ -451,30 +343,30 @@ For Gmail:
 - `SMTP_PASSWORD`: Google App Password
 - `EMAIL_TO`: recipient email address
 
-Do not use your normal Gmail password.
+`EMAIL_TO` may be the same address as `SMTP_USERNAME`, or a different mailbox.
+
+Do not use your normal Gmail password. Enable Google 2-Step Verification and create a dedicated App Password for this bot.
 
 ## Security and privacy
 
-This repository can safely be public as long as secrets are never committed into the codebase.
+This repository can remain public as long as sensitive values are stored only in GitHub Secrets.
 
-Never store the following directly in public files:
+Never commit the following into public files:
 
 ```text
 Real email addresses
-Telegram Bot Token
-Telegram Chat ID
-Gmail password
+Gmail account password
 Google App Password
-API keys
+API keys or tokens
 ```
 
-Store them in GitHub Actions Secrets instead:
+Store them in:
 
 ```text
 Settings → Secrets and variables → Actions
 ```
 
-Note that `config.json` is public. If your target date, title, or timezone is sensitive, do not place real private values there.
+Note that `config.json` is public. If the target date, title, or timezone is sensitive, use non-sensitive values or make the repository private.
 
 ## Default notification logic
 
@@ -496,7 +388,7 @@ schedule:
   - cron: "7 * * * *"
 ```
 
-Timezone calculations are handled in Python, so changing your location does not require changing the workflow schedule.
+Timezone calculations are handled in Python, so changing location does not require changing the workflow schedule.
 
 ## Manual test
 
@@ -506,4 +398,6 @@ Open:
 Actions → Countdown Bot → Run workflow
 ```
 
-If no reminder condition is currently active, the workflow will complete successfully without sending a notification.
+If no reminder condition is active, the workflow will finish successfully without sending an email.
+
+To test email delivery, temporarily set `daily_push_hour` to the current hour in your configured timezone, then manually run the workflow.
