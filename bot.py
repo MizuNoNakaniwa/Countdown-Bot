@@ -58,34 +58,44 @@ def main():
     now = datetime.now(tz)
     target = datetime.fromisoformat(cfg["target_datetime"]).replace(tzinfo=tz)
 
-    # The workflow checks hourly, but the bot sends at most one email per local day.
-    if now.hour != int(cfg.get("daily_push_hour", 9)):
-        print("Not the configured local send hour.")
-        return
-
+    manual_test = os.getenv("GITHUB_EVENT_NAME") == "workflow_dispatch"
     state = load_state()
     today = now.strftime("%Y-%m-%d")
-    if state.get("last_daily_date") == today:
-        print("Today's email has already been sent.")
-        return
+
+    # Scheduled runs send at most once per local day during the configured hour.
+    # Manual workflow runs bypass the hour/date gate so they can test email delivery immediately.
+    if not manual_test:
+        if now.hour != int(cfg.get("daily_push_hour", 9)):
+            print("Not the configured local send hour.")
+            return
+
+        if state.get("last_daily_date") == today:
+            print("Today's email has already been sent.")
+            return
 
     seconds = int((target - now).total_seconds())
     remaining = format_remaining(max(seconds, 0))
     title = cfg.get("title", "目标倒计时")
 
-    subject = f"[倒计时] {title} — {remaining}"
+    prefix = "[倒计时测试]" if manual_test else "[倒计时]"
+    subject = f"{prefix} {title} — {remaining}"
     body = (
         f"{title}\n\n"
         f"剩余：{remaining}\n"
         f"目标：{target.strftime('%Y-%m-%d %H:%M:%S')}\n"
         f"时区：{cfg['timezone']}\n"
         f"当前：{now.strftime('%Y-%m-%d %H:%M:%S')}\n"
+        f"模式：{'手动测试' if manual_test else '每日定时提醒'}\n"
     )
 
     send_email(subject, body)
-    state["last_daily_date"] = today
-    save_state(state)
-    print("Daily countdown email sent.")
+
+    if manual_test:
+        print("Test countdown email sent.")
+    else:
+        state["last_daily_date"] = today
+        save_state(state)
+        print("Daily countdown email sent.")
 
 
 if __name__ == "__main__":
