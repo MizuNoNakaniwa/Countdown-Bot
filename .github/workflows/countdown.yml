@@ -3,7 +3,8 @@ name: Countdown Bot
 on:
   workflow_dispatch:
   schedule:
-    - cron: "7 * * * *"
+    - cron: "0 9 * * *"
+      timezone: "America/Los_Angeles"
 
 permissions:
   contents: write
