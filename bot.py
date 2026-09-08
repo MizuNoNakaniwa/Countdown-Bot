@@ -53,9 +53,14 @@ def main():
     state = load_state()
     today = now.strftime("%Y-%m-%d")
 
+    # Scheduled runs use the timezone from config.json.
+    # Send once per local day, on the first check at or after local 09:00.
     if not manual_test:
-        if now.hour != int(cfg.get("daily_push_hour", 9)):
-            print("Not the configured local send hour.")
+        send_hour = int(cfg.get("daily_push_hour", 9))
+        scheduled_time = now.replace(hour=send_hour, minute=0, second=0, microsecond=0)
+
+        if now < scheduled_time:
+            print("Before today's configured local morning send time.")
             return
 
         if state.get("last_daily_date") == today:
