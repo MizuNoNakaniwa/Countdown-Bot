@@ -70,7 +70,7 @@ def main():
     body = (
         f"剩余天数：{remaining_days} 天\n\n"
         f"换算剩余小时数（去掉每天 7 小时睡觉时间）：{remaining_awake_hours} 小时\n\n"
-        f"当前时区：{cfg['timezone']}（要更换时区，请手动在 GitHub 的 `config.json` 中修改。）\n\n"
+        f"当前时区：{cfg['timezone']}（要改手动在GitHub改）\n\n"
         f"你的时间 Token 不多了！\n"
     )
 
