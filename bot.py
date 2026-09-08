@@ -1,8 +1,6 @@
 import json
 import os
 import smtplib
-import urllib.parse
-import urllib.request
 from datetime import datetime
 from email.message import EmailMessage
 from zoneinfo import ZoneInfo
@@ -34,22 +32,6 @@ def format_remaining(seconds):
     hours, rem = divmod(rem, 3600)
     minutes, secs = divmod(rem, 60)
     return f"{days} 天 {hours:02d}:{minutes:02d}:{secs:02d}"
-
-
-def send_telegram(text):
-    token = os.environ["TELEGRAM_BOT_TOKEN"]
-    chat_id = os.environ["TELEGRAM_CHAT_ID"]
-    url = f"https://api.telegram.org/bot{token}/sendMessage"
-    payload = urllib.parse.urlencode({
-        "chat_id": chat_id,
-        "text": text,
-        "parse_mode": "HTML",
-        "disable_web_page_preview": "true",
-    }).encode("utf-8")
-    req = urllib.request.Request(url, data=payload, method="POST")
-    with urllib.request.urlopen(req, timeout=30) as r:
-        if r.status != 200:
-            raise RuntimeError(r.read().decode("utf-8"))
 
 
 def send_email(subject, body):
@@ -107,29 +89,24 @@ def main():
             updates["last_final_hour"] = hour_key
 
     if reason is None:
-        print("No push needed.")
+        print("No email needed.")
         return
 
     remaining = format_remaining(max(seconds, 0))
-    message = (
-        f"⏳ <b>{cfg.get('title', '目标倒计时')}</b>\n\n"
-        f"剩余：<b>{remaining}</b>\n"
+    subject = f"[倒计时] {cfg.get('title', '目标倒计时')} — {remaining}"
+    body = (
+        f"{cfg.get('title', '目标倒计时')}\n\n"
+        f"剩余：{remaining}\n"
         f"目标：{target.strftime('%Y-%m-%d %H:%M:%S')}\n"
         f"时区：{cfg['timezone']}\n"
         f"触发：{reason}\n\n"
-        f"当前：{now.strftime('%Y-%m-%d %H:%M:%S')}"
+        f"当前：{now.strftime('%Y-%m-%d %H:%M:%S')}\n"
     )
 
-    if cfg.get("telegram_enabled", True):
-        send_telegram(message)
-
-    if cfg.get("email_enabled", False):
-        plain = message.replace("<b>", "").replace("</b>", "")
-        send_email(f"[倒计时] {cfg.get('title', '目标倒计时')}", plain)
-
+    send_email(subject, body)
     state.update(updates)
     save_state(state)
-    print("Push sent:", reason)
+    print("Email sent:", reason)
 
 
 if __name__ == "__main__":
