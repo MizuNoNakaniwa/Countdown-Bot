@@ -2,7 +2,7 @@
 
 A GitHub Actions-based daily countdown reminder bot that sends one email per day through Gmail SMTP, with configurable target time and timezone.
 
-一个基于 GitHub Actions 的每日倒计时提醒 Bot。GitHub Actions 负责定时运行，脚本每天通过 Gmail SMTP 向指定邮箱发送一次当前倒计时，并支持自定义目标时间与时区。
+一个基于 GitHub Actions 的每日倒计时提醒 Bot。GitHub Actions 每 5 分钟检查一次，脚本会读取 `config.json` 中设置的时区，并在该时区当地每天早上 09:00 之后的第一次检查时发送一封倒计时邮件；同一天只发送一次。
 
 ---
 
@@ -12,52 +12,58 @@ A GitHub Actions-based daily countdown reminder bot that sends one email per day
 
 这个项目不需要你自己维护服务器。
 
-GitHub Actions 会每小时运行一次脚本，但脚本只会在你设置的当地时间那一个小时内发送邮件，而且同一天只发送一次。
+GitHub Actions 会每 5 分钟运行一次脚本。脚本会读取 `config.json` 中的时区，把当前时间转换成该时区的当地时间，并判断当地当天早上 09:00 是否已经到达。
+
+如果已经到达 09:00，并且当天还没有发送过邮件，就会发送一次倒计时邮件。
 
 ```text
 GitHub Actions
       ↓
-每小时检查一次
+每 5 分钟检查一次
       ↓
 读取 config.json
       ↓
-判断是否到了每日发送时间
+获取配置时区的当地时间
       ↓
-计算距离目标时间还剩多久
+判断当地当天早上 09:00 是否已到
       ↓
-通过 Gmail SMTP 发邮件
+当天未发送过 → 发送邮件
       ↓
-你的收件邮箱
+当天已发送过 → 跳过
 ```
 
-当前默认目标时间是：
+当前默认目标时间：
 
 ```text
 2030-01-01 00:00:00
 ```
 
-当前默认时区是：
+当前默认时区：
 
 ```text
 America/Los_Angeles
 ```
 
-当前默认每日发送时间是当地时间：
+当前默认每日发送时间：
 
 ```text
-09:00
+当地早上 09:00
 ```
 
 ## 功能
 
 - 使用 GitHub Actions 自动运行
-- 每天只发送一封倒计时邮件
+- 每 5 分钟检查一次
+- 根据 `config.json` 中的时区判断当地时间
+- 每天当地早上 09:00 之后的第一次检查发送一次
+- 同一天只发送一封倒计时邮件
 - 通过 Gmail SMTP 发信
 - 支持自定义目标日期和时间
 - 支持 IANA 时区
 - 自动处理夏令时
 - 手机和电脑都可以通过邮箱收到提醒
 - 使用状态文件避免同一天重复发送
+- 手动运行 Workflow 时可立即发送测试邮件
 
 ## 当前配置
 
@@ -101,17 +107,23 @@ America/Los_Angeles
 "timezone": "America/New_York"
 ```
 
-无需自己计算 UTC 时差，夏令时会自动处理。
+改完以后，不需要再改 Workflow。
 
-### 修改每日发送时间
+Bot 会自动按照纽约当地时间判断每天早上 09:00。
+
+程序会自动处理夏令时，无需手动计算 UTC 时差。
+
+### 修改每日发送小时
 
 ```json
 "daily_push_hour": 9
 ```
 
-表示在所选时区的当地时间 9 点所在的那一个小时内发送一次。
+`9` 表示该时区的当地早上 09:00。
 
-GitHub Actions 不是精确到秒的定时器，所以实际执行可能会有一定延迟。
+Workflow 每 5 分钟检查一次，因此通常会在当地 09:00 之后的第一次检查时发送邮件。
+
+GitHub Actions 的定时任务可能有调度延迟，所以无法保证邮件一定在 09:00:00 秒级送达。
 
 ## Gmail / Email 设置
 
@@ -144,7 +156,7 @@ example@gmail.com
 
 填写 Google App Password，也就是 Google 的应用专用密码。
 
-不要填写你的普通 Gmail 登录密码。
+不要填写普通 Gmail 登录密码。
 
 通常需要先开启 Google 两步验证，然后创建一个 App Password。
 
@@ -164,35 +176,60 @@ EMAIL_TO      = example@gmail.com
 
 这表示由这个 Gmail 账号给自己发送每日倒计时邮件。
 
-## 邮件内容
+## 邮件格式
 
-每天收到的邮件大致会包含：
+邮件标题：
 
 ```text
-目标倒计时
-
-剩余：xxxx 天 xx:xx:xx
-目标：2030-01-01 00:00:00
-时区：America/Los_Angeles
-当前：当前当地时间
+距离2030还剩XXX天
 ```
 
-邮件标题中也会直接显示当前剩余时间。
+邮件正文：
+
+```text
+剩余天数：XXXX 天
+
+换算剩余小时数（去掉每天 7 小时睡觉时间）：XXXX 小时
+
+当前时区：XXXX（要改手动在GitHub改）
+
+你的时间 Token 不多了！
+```
+
+其中：
+
+- `剩余天数` 会根据当前时间实时计算
+- `换算剩余小时数` 按实际剩余总时间计算，并扣除每天 7 小时睡眠时间
+- 当前算法相当于：`剩余总小时数 × 17 / 24`
+- `当前时区` 直接读取 `config.json` 中的 `timezone`
 
 ## GitHub Actions 工作方式
 
-Workflow 当前每小时运行一次：
+Workflow 当前每 5 分钟运行一次：
 
 ```yaml
 schedule:
-  - cron: "7 * * * *"
+  - cron: "*/5 * * * *"
 ```
 
-Cron 使用 UTC，但你不需要根据所在地手动修改它。
+Workflow 本身不写死任何时区。
 
-脚本会读取 `config.json` 中的 `timezone`，自己判断当前当地时间是否已经进入 `daily_push_hour`。
+每次运行后，Python 会：
 
-所以切换地点时，只需要改 `timezone`。
+1. 读取 `config.json` 中的 `timezone`
+2. 获取该时区的当地时间
+3. 读取 `daily_push_hour`
+4. 判断当地当天早上 09:00 是否已经到达
+5. 如果当天还没有发送邮件，则发送一次
+6. 如果当天已经发送过，则跳过
+
+因此以后更换所在地时，只需要修改：
+
+```json
+"timezone": "新的 IANA 时区"
+```
+
+不需要修改 Workflow。
 
 ## 手动测试
 
@@ -204,17 +241,13 @@ Actions
 → Run workflow
 ```
 
-注意：当前脚本即使手动运行，也只会在配置的 `daily_push_hour` 那个当地小时内真正发信。
+手动运行 `Run workflow` 时，会跳过 09:00 时间限制，立即发送一封测试邮件。
 
-如果需要立即测试，可以暂时把：
+正常的定时任务仍然遵守：
 
-```json
-"daily_push_hour": 9
+```text
+配置时区的当地每天早上 09:00
 ```
-
-改成你当前所在地的当前小时，然后手动运行一次 Workflow。
-
-测试完成后再改回你想要的每日提醒时间。
 
 ## 安全与隐私
 
@@ -230,6 +263,8 @@ Google App Password
 
 公开仓库里的 `config.json` 任何人都能看到，所以目标日期、标题和时区本身也属于公开信息。
 
+普通访客可以看到公开仓库和 Actions 页面，但没有仓库写入权限的人不能手动触发 `Run workflow`。
+
 ---
 
 # English
@@ -238,37 +273,37 @@ Google App Password
 
 Countdown Bot is a lightweight daily countdown reminder powered by GitHub Actions.
 
-GitHub Actions runs the script every hour, but the script sends at most one email per local day and only during the configured local send hour.
+GitHub Actions runs the script every 5 minutes. The Python script reads the timezone from `config.json`, converts the current time to that local timezone, and sends one email on the first check at or after local 09:00 each day.
 
 ```text
 GitHub Actions
       ↓
-Runs every hour
+Runs every 5 minutes
       ↓
 Reads config.json
       ↓
-Checks the configured local send hour
+Gets local time for the configured timezone
       ↓
-Calculates remaining time
+Checks whether local 09:00 has been reached
       ↓
-Sends email through Gmail SMTP
+Not sent today → send email
       ↓
-Your inbox
+Already sent today → skip
 ```
 
-The current default target is:
+Current default target:
 
 ```text
 2030-01-01 00:00:00
 ```
 
-Default timezone:
+Current default timezone:
 
 ```text
 America/Los_Angeles
 ```
 
-Default daily send hour:
+Current default daily send time:
 
 ```text
 09:00 local time
@@ -277,13 +312,17 @@ Default daily send hour:
 ## Features
 
 - Automated with GitHub Actions
-- One countdown email per day
+- Checks every 5 minutes
+- Uses the timezone from `config.json`
+- Sends once per day after local 09:00
+- One countdown email per local day
 - Gmail SMTP delivery
 - Custom target date and time
 - IANA timezone support
 - Automatic daylight-saving-time handling
 - Email delivery to phone and desktop
 - Persistent state to prevent duplicate daily emails
+- Manual workflow runs can send an immediate test email
 
 ## Current configuration
 
@@ -325,7 +364,11 @@ Example:
 "timezone": "America/New_York"
 ```
 
-You do not need to manually calculate UTC offsets. Daylight saving time is handled automatically.
+After changing this value, no workflow edit is required.
+
+The bot will automatically interpret the daily send time as 09:00 in the new timezone.
+
+Daylight saving time is handled automatically.
 
 ### Change the daily send hour
 
@@ -333,9 +376,11 @@ You do not need to manually calculate UTC offsets. Daylight saving time is handl
 "daily_push_hour": 9
 ```
 
-This means the bot sends during the local 9 AM hour in the configured timezone.
+`9` means local 09:00 in the configured timezone.
 
-GitHub Actions scheduling is not guaranteed to run at an exact second, so some delay is possible.
+Because the workflow checks every 5 minutes, the email is normally sent on the first check after local 09:00.
+
+GitHub Actions schedules may be delayed, so second-level delivery at exactly 09:00:00 is not guaranteed.
 
 ## Gmail / Email setup
 
@@ -388,37 +433,61 @@ SMTP_PASSWORD = your 16-character Google App Password
 EMAIL_TO      = example@gmail.com
 ```
 
-This configuration makes the Gmail account send the daily countdown email to itself.
+## Email format
 
-## Email content
-
-A daily message will look roughly like this:
+Subject:
 
 ```text
-目标倒计时
-
-剩余：xxxx 天 xx:xx:xx
-目标：2030-01-01 00:00:00
-时区：America/Los_Angeles
-当前：current local time
+距离2030还剩XXX天
 ```
 
-The remaining time is also included in the email subject.
+Body:
+
+```text
+剩余天数：XXXX 天
+
+换算剩余小时数（去掉每天 7 小时睡觉时间）：XXXX 小时
+
+当前时区：XXXX（要改手动在GitHub改）
+
+你的时间 Token 不多了！
+```
+
+The remaining awake hours are calculated from the actual remaining total time using approximately:
+
+```text
+remaining total hours × 17 / 24
+```
+
+This subtracts 7 hours of sleep per day.
 
 ## How GitHub Actions works
 
-The workflow currently runs once per hour:
+The workflow runs every 5 minutes:
 
 ```yaml
 schedule:
-  - cron: "7 * * * *"
+  - cron: "*/5 * * * *"
 ```
 
-The cron schedule uses UTC, but you do not need to adjust it when moving between locations.
+The workflow itself does not hard-code a timezone.
 
-The Python script reads the IANA timezone from `config.json` and decides whether the current run falls within the configured local send hour.
+On every run, Python:
 
-To change location, only update `timezone`.
+1. Reads `timezone` from `config.json`
+2. Gets the current local time in that timezone
+3. Reads `daily_push_hour`
+4. Checks whether local 09:00 has been reached
+5. Sends one email if no email has been sent that local day
+6. Skips if the daily email has already been sent
+
+To change location, only update:
+
+```json
+"timezone": "your IANA timezone"
+```
+
+No workflow change is required.
 
 ## Manual testing
 
@@ -430,9 +499,9 @@ Actions
 → Run workflow
 ```
 
-The current implementation still respects `daily_push_hour` during a manual run.
+A manual workflow run bypasses the 09:00 time gate and sends a test email immediately.
 
-For an immediate test, temporarily change `daily_push_hour` to the current hour in your configured timezone, run the workflow manually, then change it back afterward.
+Scheduled runs still follow the configured timezone and local morning send time.
 
 ## Security and privacy
 
@@ -446,4 +515,6 @@ Other API keys or tokens
 
 Store them in GitHub Actions Secrets instead.
 
-Remember that `config.json` is public, so the target date, title, and timezone are also publicly visible.
+Remember that `config.json` is public, so the target date, title, and timezone are publicly visible.
+
+Public visitors can view the repository and Actions history, but users without repository write access cannot manually trigger `Run workflow`.
