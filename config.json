@@ -4,7 +4,5 @@
   "timezone": "America/Los_Angeles",
   "daily_push_hour": 9,
   "critical_day_milestones": [365, 180, 100, 30, 7, 3, 1, 0],
-  "final_day_hourly": true,
-  "telegram_enabled": true,
-  "email_enabled": false
+  "final_day_hourly": true
 }
