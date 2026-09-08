@@ -25,15 +25,6 @@ def save_state(state):
         json.dump(state, f, ensure_ascii=False, indent=2)
 
 
-def format_remaining(seconds):
-    if seconds <= 0:
-        return "已到达目标时间"
-    days, rem = divmod(seconds, 86400)
-    hours, rem = divmod(rem, 3600)
-    minutes, secs = divmod(rem, 60)
-    return f"{days} 天 {hours:02d}:{minutes:02d}:{secs:02d}"
-
-
 def send_email(subject, body):
     host = os.getenv("SMTP_HOST", "smtp.gmail.com")
     port = int(os.getenv("SMTP_PORT", "465"))
@@ -62,8 +53,6 @@ def main():
     state = load_state()
     today = now.strftime("%Y-%m-%d")
 
-    # Scheduled runs send at most once per local day during the configured hour.
-    # Manual workflow runs bypass the hour/date gate so they can test email delivery immediately.
     if not manual_test:
         if now.hour != int(cfg.get("daily_push_hour", 9)):
             print("Not the configured local send hour.")
@@ -73,19 +62,16 @@ def main():
             print("Today's email has already been sent.")
             return
 
-    seconds = int((target - now).total_seconds())
-    remaining = format_remaining(max(seconds, 0))
-    title = cfg.get("title", "目标倒计时")
+    seconds = max(int((target - now).total_seconds()), 0)
+    remaining_days = seconds // 86400
+    remaining_awake_hours = int((seconds / 3600) * (17 / 24))
 
-    prefix = "[倒计时测试]" if manual_test else "[倒计时]"
-    subject = f"{prefix} {title} — {remaining}"
+    subject = f"距离2030还剩{remaining_days}天"
     body = (
-        f"{title}\n\n"
-        f"剩余：{remaining}\n"
-        f"目标：{target.strftime('%Y-%m-%d %H:%M:%S')}\n"
-        f"时区：{cfg['timezone']}\n"
-        f"当前：{now.strftime('%Y-%m-%d %H:%M:%S')}\n"
-        f"模式：{'手动测试' if manual_test else '每日定时提醒'}\n"
+        f"剩余天数：{remaining_days} 天\n\n"
+        f"换算剩余小时数（去掉每天 7 小时睡觉时间）：{remaining_awake_hours} 小时\n\n"
+        f"当前时区：{cfg['timezone']}（要更换时区，请手动在 GitHub 的 `config.json` 中修改。）\n\n"
+        f"你的时间 Token 不多了！\n"
     )
 
     send_email(subject, body)
