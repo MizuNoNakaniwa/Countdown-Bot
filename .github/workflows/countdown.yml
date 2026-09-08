@@ -23,8 +23,6 @@ jobs:
 
       - name: Run countdown bot
         env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           SMTP_HOST: "smtp.gmail.com"
           SMTP_PORT: "465"
           SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
